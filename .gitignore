@@ -1,4 +1,8 @@
 .DS_Store
 .idea
 .claude
+.agent/
 node_modules
+plugins/glm-plan-deploy/.docs
+.zai/
+.worktrees/
