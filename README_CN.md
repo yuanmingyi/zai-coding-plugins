@@ -6,12 +6,12 @@ Claude Code 插件集合，旨在提升编程效率和提供 GLM Coding Plan 相
 
 ## 可用插件
 
-| 插件                  | 描述                                 |
-|---------------------|------------------------------------|
-| **glm-plan-usage**  | 查询 GLM Coding Plan 的配额和使用统计        |
-| **glm-plan-bug**    | 提交 GLM Coding Plan 的反馈和问题报告        |
+| 插件 | 描述 | 命令 |
+|------|------|------|
+| **glm-plan-usage** | 查询 GLM Coding Plan 的配额和使用统计 | `/glm-plan-usage:usage-query` |
+| **glm-plan-bug** | 提交 GLM Coding Plan 的反馈和问题报告 | `/glm-plan-bug:case-feedback` |
+| **glm-plan-deploy** | 快速部署用户项目到云端 | `/glm-plan-deploy:deploy-arbitrary` |
 
-**注意:** **glm-plan-bug** 会总结您当前对话的上下文信息以帮助定位问题，若不想上报信息，请勿主动使用此插件。
 
 ## 前置要求
 
@@ -20,16 +20,12 @@ Claude Code 插件集合，旨在提升编程效率和提供 GLM Coding Plan 相
 
 ## 快速开始
 
-> 在 Claude Code 中安装插件市场以访问这些插件。
-
-### 方式一
-
-> 前置要求：已配置 Git 环境。
+### 在 Claude Code 中安装插件市场以访问这些插件。
 
 1. 安装插件市场
 
 ```shell
-claude plugin marketplace add zai-org/zai-coding-plugins
+claude plugin marketplace add yuanmingyi/zai-coding-plugins
 ```
 
 2. 从插件市场安装插件
@@ -42,11 +38,9 @@ claude plugin install glm-plan-usage@zai-coding-plugins
 claude plugin install glm-plan-bug@zai-coding-plugins
 ```
 
-### 方式二
-
-运行 `npx @z_ai/coding-helper` 工具直接管理和安装插件。
-
-`开始` -> `编码工具` -> `Claude Code` -> `插件市场`
+```shell
+claude plugin install glm-plan-deploy@zai-coding-plugins
+```
 
 ### 使用插件
 
@@ -66,7 +60,54 @@ claude
 /glm-plan-bug:case-feedback 在此输入你的反馈
 ```
 
-**注意:** **glm-plan-bug** 会总结您当前对话的上下文信息以帮助定位问题，若不想上报信息，请勿主动使用此插件。
+```bash
+/glm-plan-deploy:deploy-arbitrary [部署html文件路径]
+```
+
+```bash
+/glm-plan-deploy:status
+```
+
+```bash
+/glm-plan-deploy:delete-project
+```
+
+## 使用示例
+
+### 查询 GLM Coding Plan 使用统计
+
+查看当前配额和使用情况：
+
+```bash
+/glm-plan-usage:usage-query
+```
+
+### 提交 GLM Coding Plan 反馈
+
+报告问题或提供反馈：
+
+```bash
+/glm-plan-bug:case-feedback 我的套餐遇到了一个问题
+```
+
+### 部署项目到云端
+
+一键部署当前目录：
+
+```bash
+/glm-plan-deploy:deploy-arbitrary
+```
+
+查询当前项目最近一次部署结果
+
+```bash
+/glm-plan-deploy:status
+```
+
+删除当前项目在云端的部署实例
+```bash
+/glm-plan-deploy:delete-project
+```
 
 ## 贡献
 
