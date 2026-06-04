@@ -3,77 +3,6 @@
 const fs = require("fs");
 const path = require("path");
 
-const { resolveDeployContext } = require("../common/auth");
-const { formatStandardDetectionResult } = require("../common/format");
-const { requestJson } = require("../common/http");
-const { detectNodeVersion, loadPackageJson } = require("./detectNodeVersion");
-const { detectOutputDir } = require("./detectOutputDir");
-
-async function inspectProject(projectDir = process.cwd(), options = {}) {
-  const packageJson = loadPackageJson(projectDir);
-  const indexHtmlPath = path.join(projectDir, "index.html");
-
-  if (!packageJson) {
-    if (fs.existsSync(indexHtmlPath)) {
-      const result = {
-        success: true,
-        projectType: "static-html",
-        buildCommand: null,
-        nodeVersion: null,
-        outdir: null,
-      };
-      result.summary = formatStandardDetectionResult(result);
-      return result;
-    }
-
-    return {
-      success: false,
-      message: "No supported project manifest found in the current directory.",
-      summary: "No supported project manifest found in the current directory.",
-    };
-  }
-
-  const supportedVersions =
-    options.supportedVersions ||
-    (options.skipSupportedVersionLookup
-      ? []
-      : await safeGetSupportedVersions());
-
-  const detectedVersion = detectNodeVersion(projectDir, {
-    packageJson,
-    supportedVersions,
-  });
-
-  const result = {
-    success: true,
-    projectType: "nodejs",
-    framework: detectFramework(packageJson),
-    buildCommand: detectBuildCommand(packageJson, projectDir),
-    nodeRequirement: detectedVersion.requirement,
-    nodeVersion: detectedVersion.nodeVersion,
-    outdir: detectOutputDir(projectDir, { packageJson }),
-  };
-  result.summary = formatStandardDetectionResult(result);
-  return result;
-}
-
-async function safeGetSupportedVersions() {
-  const context = resolveDeployContext();
-  if (!context.token) {
-    return [];
-  }
-
-  try {
-    const response = await requestJson({
-      url: `${context.baseUrl}/client/getAvailableNodejsVersions`,
-      token: context.token,
-    });
-    return Array.isArray(response.data) ? response.data : [];
-  } catch (error) {
-    return [];
-  }
-}
-
 function detectFramework(packageJson) {
   const dependencies = {
     ...(packageJson.dependencies || {}),
@@ -196,5 +125,4 @@ module.exports = {
   detectFramework,
   detectPackageManager,
   detectPackageManagerSpec,
-  inspectProject,
 };

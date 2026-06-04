@@ -7,34 +7,19 @@ allowed-tools: Bash, Read, Grep
 
 # 状态技能
 
-## 步骤 1：检测项目类型
+## 步骤 1：检查部署设置
 
-**先从 env vars 解析设置路径。** 以下两个路径都由环境变量控制；`.zai/deploy/*.json` 字符串仅在对应 env var 未设置或为空时作为回退。绝不要硬编码回退路径 — 始终解析并使用 env-var 值。
+**先从 env var 解析设置路径。** `.zai/deploy/*.json` 字符串仅在 env var 未设置或为空时作为回退。绝不要硬编码回退路径 — 始终解析并使用 env-var 值。
 
 ```bash
-ZAI_EO_SETTINGS_PATH="${ZAI_EO_SETTINGS_PATH:-.zai/deploy/settings.json}"
 ZAI_PROJECT_SETTINGS_PATH="${ZAI_PROJECT_SETTINGS_PATH:-.zai/deploy/tcb-settings.json}"
 ```
 
-检查当前项目目录中哪些已解析设置文件存在：
+检查当前项目目录中已解析的设置文件是否存在。此文件由 `deploy-arbitrary` 命令创建。
 
-1. `${ZAI_EO_SETTINGS_PATH}` — 标准部署（通过 `deploy-skill` 部署）
-2. `${ZAI_PROJECT_SETTINGS_PATH}` — 任意部署（基于 Docker，通过 `deploy-arbitrary` 部署）
+如果不存在，告诉用户尚未配置任何部署并停止。
 
-如果两者都存在，运行**步骤 2A** 和**步骤 2B** 查询两者状态，然后在**步骤 3** 中展示合并结果。
-
-如果只存在其中一个，运行对应步骤并在**步骤 3** 中展示。
-
-如果两者都不存在，告诉用户尚未配置任何部署并停止。
-
-## 步骤 2A：标准部署状态
-
-运行一次：
-```bash
-node /absolute/path/to/glm-plan-deploy/scripts/index.cjs status
-```
-
-## 步骤 2B：任意部署状态
+## 步骤 2：查询任意部署状态
 
 运行一次：
 
@@ -49,13 +34,11 @@ node /absolute/path/to/glm-plan-deploy/scripts/plugin-cli.js status-arbitrary --
 - 调用 `GET /client/tcb/getTask`
 - 返回带有预格式化 `summary` 的结构化 JSON
 
-如果脚本返回 `noDeployment: true`，将其视为“未找到任意部署记录”，并继续到**步骤 3**。
+如果脚本返回 `noDeployment: true`，将其视为“未找到部署记录”，并继续到**步骤 3**。
 
 ## 步骤 3：展示结果
 
-如果收集到了两种项目类型的结果，分别在单独标题下展示（例如 “Standard Deploy” 和 “Arbitrary Deploy”）。
-
-对每个结果，检查状态：
+检查状态：
 
 **Success:** 在默认浏览器中打开部署 URL。
 

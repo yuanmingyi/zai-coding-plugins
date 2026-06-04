@@ -176,22 +176,6 @@ function describeRecoveryOutcome(recovery) {
   return "ran, but the retried build still failed";
 }
 
-function formatStandardDetectionResult(result) {
-  if (!result.success) {
-    return result.summary || result.message;
-  }
-
-  return bulletLines([
-    "**Detected Configuration:**",
-    `- Project type: ${result.projectType}`,
-    result.nodeVersion ? `- Node.js: ${result.nodeVersion}` : null,
-    result.outdir ? `- Output: \`${result.outdir}\`` : "- Output: unknown",
-    result.buildCommand
-      ? `- Build: \`${result.buildCommand}\``
-      : "- Build: unknown",
-  ]);
-}
-
 module.exports = {
   formatArbitraryAnalyzeResult,
   formatArbitraryBuildValidationResult,
@@ -200,5 +184,4 @@ module.exports = {
   formatDeleteProjectResult,
   formatDestroyResult,
   formatInitResult,
-  formatStandardDetectionResult,
 };

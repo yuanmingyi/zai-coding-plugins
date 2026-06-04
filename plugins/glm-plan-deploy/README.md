@@ -11,32 +11,15 @@ Attention:
 
 In Claude Code, run:
 ```
-/glm-plan-deploy:init
-```
-to initialize the deployment environment,
-```
 /glm-plan-deploy:deploy-arbitrary
 ```
 to deploy projects with arbitrary languages and tech stacks using Docker containerization,
-```
-/glm-plan-deploy:destroy
-```
-to destroy the deployment environment, or
 ```
 /glm-plan-deploy:status
 ```
 to check the result of the last deployment
 
 ## Command overview
-
-### /init
-
-Initialize the deployment environment for the current account.
-
-**Execution flow:**
-1. Command `/init` invokes `@init-skill`
-2. The skill resolves deploy API authentication from local environment variables
-3. The skill calls `POST /client/tcb/init` and reports the result
 
 ### /deploy-arbitrary
 
@@ -49,7 +32,7 @@ In the command forms below, `PLUGIN_ROOT` is the absolute path to the installed 
 2. The agent runs `node "${PLUGIN_ROOT}/scripts/plugin-cli.js" deploy-arbitrary --json --cwd "${TARGET_PROJECT_DIR}" [--path "<entry-path>"]` to resolve auth, retry budget, upload limit, runtime/build/start/output settings, local build validation, Docker artifact generation, package assembly, upload, task creation, polling, access URL verification, embedded retry classification, and final report formatting in one deterministic helper flow
 3. If `deploy-arbitrary` returns `needsUserInput: true`, the agent asks once, applies a concrete fix or override, and reruns the same helper with the corresponding override flag instead of manually chaining the lower-level scripts
 4. On terminal outcomes, `deploy-arbitrary` returns `finalReport`, and the agent relays exactly that string as the final user-facing report without wrapping or extra commentary
-5. Lower-level helpers such as `preflight-arbitrary`, `analyze-arbitrary`, `validate-build-arbitrary`, `render-dockerfiles-arbitrary`, `prepare-local-arbitrary`, `package-project-arbitrary`, `remote-deploy-arbitrary`, `classify-failure-arbitrary`, and `format-deploy-arbitrary-report` remain available for debug/fallback only
+5. Lower-level helper modules are internal to `deploy-arbitrary`; the plugin CLI exposes the consolidated helper instead of split deployment steps
 
 The final `Time Cost` table reports Local Prep, Remote Deploy, Status Polling (when polling time is available), and Total wall-clock seconds anchored to the helper's start.
 
@@ -61,18 +44,6 @@ used as the runtime `index.html` even when the source file is named
 **Important constraint:** Deployment-task retries must stay within `config.retryTimes` from `/client/tcb/status`, and are allowed only when the previous task failed due to Dockerfile/packaging/runtime-containerization issues the agent can fix.
 
 **Supported languages:** Python, Node.js, Go, Java, Ruby, PHP, Rust, C/C++, and any other language that can run in a Linux Docker container.
-
-**Lifecycle note:** Deployment-environment lifecycle operations are separate from this deploy flow.
-
-### /destroy
-
-Destroy the deployment environment for the current account.
-
-**Execution flow:**
-1. Command `/destroy` invokes `@destroy-skill`
-2. The skill resolves deploy API authentication from local environment variables
-3. The skill asks for explicit confirmation before deleting anything
-4. The skill calls `POST /client/tcb/uninit` and reports the result
 
 ### /status
 

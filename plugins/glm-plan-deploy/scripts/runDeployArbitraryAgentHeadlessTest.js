@@ -9,6 +9,24 @@ const DEFAULT_MIN_SCORE = 90;
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 const PLUGIN_PATH_PATTERN =
   /(?:^|[^A-Za-z0-9_-])(?:\.{1,2}\/)*plugins\/glm-plan-deploy\//;
+const SPLIT_HELPER_COMMANDS = [
+  "analyze-arbitrary",
+  "classify-failure-arbitrary",
+  "controller-deploy-arbitrary",
+  "format-deploy-arbitrary-report",
+  "package-project-arbitrary",
+  "poll-arbitrary-task",
+  "preflight-arbitrary",
+  "prepare-local-arbitrary",
+  "record-arbitrary-deployment",
+  "remote-deploy-arbitrary",
+  "render-dockerfiles-arbitrary",
+  "validate-build-arbitrary",
+  "verify-access-url-arbitrary",
+];
+const SPLIT_HELPER_COMMAND_PATTERN = new RegExp(
+  `\\b(?:${SPLIT_HELPER_COMMANDS.join("|")})\\b`,
+);
 
 function usage() {
   console.log(
@@ -556,9 +574,7 @@ function evaluateProcess(entries, projectDir) {
     /\bplugin-cli\.js["']?\s+deploy-arbitrary\b/.test(item.command),
   );
   const splitHelperCommands = bashCommands.filter((item) =>
-    /\b(prepare-local-arbitrary|remote-deploy-arbitrary|package-project-arbitrary|controller-deploy-arbitrary|poll-arbitrary-task|verify-access-url-arbitrary|preflight-arbitrary|analyze-arbitrary|validate-build-arbitrary|render-dockerfiles-arbitrary)\b/.test(
-      item.command,
-    ),
+    SPLIT_HELPER_COMMAND_PATTERN.test(item.command),
   );
   const searchTools = toolUses.filter(
     (tool) => tool.name === "Glob" || tool.name === "Grep",

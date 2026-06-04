@@ -107,10 +107,9 @@ The helper always returns one JSON object. Decide what to do in this order:
 - Do not modify files under `${PLUGIN_ROOT}`.
 - Do not modify user source unless the helper explicitly asked via
   `needsUserInput` and the user agreed.
-- Do not call any other plugin script directly. The lower-level helpers
-  (`prepare-local-arbitrary`, `remote-deploy-arbitrary`, etc.) are
-  debug/fallback tools only; the consolidated `deploy-arbitrary` owns the
-  full flow on the normal path.
+- Do not call any other plugin script directly. Lower-level helper modules are
+  internal implementation details; the consolidated `deploy-arbitrary` owns
+  the full flow.
 - Do not run `docker build`, `npm test`, `npx jest`, `vitest`, or any
   repository test command during deployment.
 - Do not probe the remote API with `curl`, `node -e`, DNS, proxy, or env

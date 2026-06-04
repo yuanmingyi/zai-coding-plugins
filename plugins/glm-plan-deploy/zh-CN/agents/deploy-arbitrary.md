@@ -96,9 +96,8 @@ runtime-nginx-x-envoy-external-address-v1`；当部署 API 服务器启用全局
 - 不要修改 `${PLUGIN_ROOT}` 下的文件。
 - 除非辅助程序通过 `needsUserInput` 明确请求且用户同意，不要修改用户源
   码。
-- 不要直接调用其他插件脚本。底层辅助程序
-  （`prepare-local-arbitrary`、`remote-deploy-arbitrary` 等）仅作为调试
-  / 回退工具；正常路径由 `deploy-arbitrary` 统一负责。
+- 不要直接调用其他插件脚本。底层辅助模块是内部实现细节；
+  `deploy-arbitrary` 统一负责完整流程。
 - 不要在部署期间运行 `docker build`、`npm test`、`npx jest`、`vitest`
   或任何仓库测试命令。
 - 不要用 `curl`、`node -e`、DNS、代理或环境变量探测远程 API。辅助程序

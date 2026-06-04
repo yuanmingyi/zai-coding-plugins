@@ -9,8 +9,6 @@ allowed-tools: Bash
 
 Run the commands verbatim. All user-facing text comes from the scripts — do not paraphrase, reformat, or infer values yourself.
 
-The server v2 collapsed the BASIC / ADVANCED env model. There is one project per project-id and one delete call: `POST /client/tcb/deleteProject { projectId }`. There is no `envType` flag.
-
 ### Step 1: Preview
 
 ```bash

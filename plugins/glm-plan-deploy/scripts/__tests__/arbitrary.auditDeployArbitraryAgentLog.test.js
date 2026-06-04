@@ -250,6 +250,18 @@ describe("auditDeployArbitraryAgentLog", () => {
         'node "plugins/glm-plan-deploy/scripts/plugin-cli.js" remote-deploy-arbitrary --cwd "/abs/project"',
       ),
       userToolResult(5, JSON.stringify({ success: true, stage: "completed" })),
+      assistantBash(
+        6,
+        'node "plugins/glm-plan-deploy/scripts/plugin-cli.js" classify-failure-arbitrary --detailLog "failed"',
+      ),
+      assistantBash(
+        7,
+        'node "plugins/glm-plan-deploy/scripts/plugin-cli.js" format-deploy-arbitrary-report --outcome failed',
+      ),
+      assistantBash(
+        8,
+        'node "plugins/glm-plan-deploy/scripts/plugin-cli.js" record-arbitrary-deployment --taskId task-1',
+      ),
     ];
 
     const report = analyze("synthetic.jsonl", entries);
@@ -260,6 +272,17 @@ describe("auditDeployArbitraryAgentLog", () => {
     expect(findCheck(report, "no_manual_subhelper_chaining")).toMatchObject({
       status: "fail",
     });
+    expect(
+      findCheck(report, "no_manual_subhelper_chaining").evidence.map(
+        (item) => item.command,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("classify-failure-arbitrary"),
+        expect.stringContaining("format-deploy-arbitrary-report"),
+        expect.stringContaining("record-arbitrary-deployment"),
+      ]),
+    );
     expect(findCheck(report, "final_report_relayed_verbatim")).toMatchObject({
       status: "n/a",
     });

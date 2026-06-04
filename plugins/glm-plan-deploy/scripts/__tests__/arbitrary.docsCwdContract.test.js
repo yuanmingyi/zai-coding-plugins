@@ -97,7 +97,7 @@ describe("deploy-arbitrary scripted contract docs", () => {
     );
   });
 
-  it("describes only the consolidated helper command; sub-helpers are not advertised in the agent prompt", () => {
+  it("describes only the consolidated helper command; sub-helpers are internal implementation details", () => {
     const orchestrator = readPluginFile("agents/deploy-arbitrary.md");
 
     expect(orchestrator).not.toContain(
@@ -106,8 +106,8 @@ describe("deploy-arbitrary scripted contract docs", () => {
     expect(orchestrator).not.toContain(
       "node ${PLUGIN_ROOT}/scripts/plugin-cli.js remote-deploy-arbitrary",
     );
-    expect(orchestrator).toContain("The lower-level helpers");
-    expect(orchestrator).toContain("debug/fallback");
+    expect(orchestrator).toContain("Lower-level helper modules");
+    expect(orchestrator).toContain("internal implementation details");
   });
 
   it("documents the three routing branches: success, needsUserInput, retryable failure", () => {

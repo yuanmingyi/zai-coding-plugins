@@ -61,10 +61,6 @@ function resolveDeployContext(options = {}) {
       env.ZAI_PROJECT_SETTINGS_PATH || ".zai/deploy/tcb-settings.json",
       cwd,
     ),
-    standardSettingsPath: resolveSettingsPath(
-      env.ZAI_EO_SETTINGS_PATH || ".zai/deploy/settings.json",
-      cwd,
-    ),
   };
 }
 

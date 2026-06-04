@@ -67,8 +67,5 @@ describe("common/auth", () => {
     expect(result.projectSettingsPath).toBe(
       path.resolve("/tmp/project", ".zai/deploy/tcb-settings.json"),
     );
-    expect(result.standardSettingsPath).toBe(
-      path.resolve("/tmp/project", ".zai/deploy/settings.json"),
-    );
   });
 });

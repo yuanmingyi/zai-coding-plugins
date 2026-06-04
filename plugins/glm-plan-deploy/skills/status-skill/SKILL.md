@@ -7,34 +7,19 @@ allowed-tools: Bash, Read, Grep
 
 # Status Skill
 
-## Step 1: Detect Project Types
+## Step 1: Check Deployment Settings
 
-**Resolve settings paths from env vars first.** Both paths below are controlled by environment variables; the `.zai/deploy/*.json` strings are only fallbacks when the respective env var is unset or empty. Never hardcode the fallback path — always resolve and use the env-var value.
+**Resolve the settings path from the env var first.** The `.zai/deploy/*.json` string is only a fallback when the env var is unset or empty. Never hardcode the fallback path — always resolve and use the env-var value.
 
 ```bash
-ZAI_EO_SETTINGS_PATH="${ZAI_EO_SETTINGS_PATH:-.zai/deploy/settings.json}"
 ZAI_PROJECT_SETTINGS_PATH="${ZAI_PROJECT_SETTINGS_PATH:-.zai/deploy/tcb-settings.json}"
 ```
 
-Check which of the resolved settings files exist in the current project directory:
+Check whether the resolved settings file exists in the current project directory. This file is created by the `deploy-arbitrary` command.
 
-1. `${ZAI_EO_SETTINGS_PATH}` — standard deploy (deployed via `deploy-skill`)
-2. `${ZAI_PROJECT_SETTINGS_PATH}` — arbitrary deploy (Docker-based, deployed via `deploy-arbitrary`)
+If it does not exist, tell the user no deployment has been configured yet and stop.
 
-If both exist, run **Step 2A** and **Step 2B** to query status from both, then present combined results in **Step 3**.
-
-If only one exists, run the corresponding step and present in **Step 3**.
-
-If neither exists, tell the user no deployment has been configured yet and stop.
-
-## Step 2A: Standard Deploy Status
-
-Run once:
-```bash
-node /absolute/path/to/glm-plan-deploy/scripts/index.cjs status
-```
-
-## Step 2B: Arbitrary Deploy Status
+## Step 2: Query Arbitrary Deploy Status
 
 Run once:
 
@@ -49,13 +34,11 @@ The script is responsible for:
 - calling `GET /client/tcb/getTask`
 - returning structured JSON with a preformatted `summary`
 
-If the script returns `noDeployment: true`, treat that as "no deployment record was found for the arbitrary deploy" and continue to **Step 3**.
+If the script returns `noDeployment: true`, treat that as "no deployment record was found" and continue to **Step 3**.
 
 ## Step 3: Present Results
 
-If results were collected from both project types, present them under separate headings (e.g., "Standard Deploy" and "Arbitrary Deploy").
-
-For each result, check the status:
+Check the status:
 
 **Success:** Open the deployment URL in default browser.
 

@@ -19,6 +19,12 @@
       "source": "./plugins/glm-plan-bug",
       "category": "development",
       "description": "Submit case feedback and bug reports for GLM Coding Plan service."
+    },
+    {
+      "name": "glm-plan-deploy",
+      "source": "./plugins/glm-plan-deploy",
+      "category": "development",
+      "description": "Quick deploy current project for GLM Coding Plan users."
     }
   ]
 }

@@ -3,6 +3,28 @@
 const fs = require("fs");
 const path = require("path");
 
+const SPLIT_HELPER_COMMANDS = [
+  "analyze-arbitrary",
+  "classify-failure-arbitrary",
+  "controller-deploy-arbitrary",
+  "format-deploy-arbitrary-report",
+  "package-project-arbitrary",
+  "poll-arbitrary-task",
+  "preflight-arbitrary",
+  "prepare-local-arbitrary",
+  "record-arbitrary-deployment",
+  "remote-deploy-arbitrary",
+  "render-dockerfiles-arbitrary",
+  "validate-build-arbitrary",
+  "verify-access-url-arbitrary",
+];
+const SPLIT_HELPER_COMMAND_PATTERN = new RegExp(
+  `\\b(?:${SPLIT_HELPER_COMMANDS.join("|")})\\b`,
+);
+const SPLIT_HELPER_CLI_COMMAND_PATTERN = new RegExp(
+  `plugin-cli\\.js["']?\\s+(?:${SPLIT_HELPER_COMMANDS.join("|")})\\b`,
+);
+
 function usage() {
   console.log(
     [
@@ -302,18 +324,14 @@ function isRemoteRetryCommand(command) {
 function isConsolidatedDeployCommand(command) {
   return (
     /plugin-cli\.js["']?\s+deploy-arbitrary\b/.test(command) &&
-    !/\b(?:prepare-local|remote-deploy|package-project|controller-deploy|poll-arbitrary-task|verify-access-url|preflight|analyze|validate-build|render-dockerfiles|classify-failure)-?arbitrary\b/.test(
-      command,
-    )
+    !SPLIT_HELPER_COMMAND_PATTERN.test(command)
   );
 }
 
 // Standalone lower-level helper invocations that must NOT appear on the
 // happy path once the consolidated helper produces a finalReport.
 function isSubHelperCommand(command) {
-  return /plugin-cli\.js["']?\s+(?:prepare-local-arbitrary|remote-deploy-arbitrary|package-project-arbitrary|controller-deploy-arbitrary|poll-arbitrary-task|verify-access-url-arbitrary|preflight-arbitrary|analyze-arbitrary|validate-build-arbitrary|render-dockerfiles-arbitrary)\b/.test(
-    command,
-  );
+  return SPLIT_HELPER_CLI_COMMAND_PATTERN.test(command);
 }
 
 // Extract the plugin-cli.js path token and classify how it was resolved.

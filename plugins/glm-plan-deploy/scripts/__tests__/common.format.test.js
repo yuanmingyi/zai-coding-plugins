@@ -8,7 +8,6 @@ import {
   formatDeleteProjectResult,
   formatDestroyResult,
   formatInitResult,
-  formatStandardDetectionResult,
 } from "../common/format.js";
 
 describe("common/format", () => {
@@ -130,17 +129,5 @@ describe("common/format", () => {
         buildCommand: "npm ci && npm run build",
       }),
     ).toContain("Local build validation passed");
-  });
-
-  it("formats standard detection results", () => {
-    expect(
-      formatStandardDetectionResult({
-        success: true,
-        projectType: "nodejs",
-        nodeVersion: "20.18.0",
-        outdir: "dist",
-        buildCommand: "npm ci && npm run build",
-      }),
-    ).toContain("Node.js: 20.18.0");
   });
 });

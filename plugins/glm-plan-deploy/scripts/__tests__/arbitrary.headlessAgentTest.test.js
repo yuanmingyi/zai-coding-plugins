@@ -504,8 +504,20 @@ describe("runDeployArbitraryAgentHeadlessTest", () => {
         3,
         'node "/repo/plugins/glm-plan-deploy/scripts/plugin-cli.js" remote-deploy-arbitrary --json --cwd "/app"',
       ),
-      userToolResult(
+      assistantBash(
         4,
+        'node "/repo/plugins/glm-plan-deploy/scripts/plugin-cli.js" classify-failure-arbitrary --json --detailLog "failed"',
+      ),
+      assistantBash(
+        5,
+        'node "/repo/plugins/glm-plan-deploy/scripts/plugin-cli.js" format-deploy-arbitrary-report --json --outcome failed',
+      ),
+      assistantBash(
+        6,
+        'node "/repo/plugins/glm-plan-deploy/scripts/plugin-cli.js" record-arbitrary-deployment --json --taskId task-1',
+      ),
+      userToolResult(
+        7,
         JSON.stringify({
           success: true,
           stage: "completed",
@@ -531,6 +543,17 @@ describe("runDeployArbitraryAgentHeadlessTest", () => {
     expect(report.passed).toBe(false);
     expect(report.process.unexpectedAttempts.map((item) => item.kind)).toEqual(
       expect.arrayContaining(["split-helper", "search"]),
+    );
+    expect(
+      report.process.unexpectedAttempts
+        .filter((item) => item.kind === "split-helper")
+        .map((item) => item.command),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("classify-failure-arbitrary"),
+        expect.stringContaining("format-deploy-arbitrary-report"),
+        expect.stringContaining("record-arbitrary-deployment"),
+      ]),
     );
   });
 
