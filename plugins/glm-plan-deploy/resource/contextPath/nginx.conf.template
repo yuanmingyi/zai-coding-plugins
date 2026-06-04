@@ -1,0 +1,65 @@
+server {
+    listen ${PORT};
+    server_name _;
+
+    include /tmp/cc-deploy/nginx-real-ip.conf;
+    include /tmp/cc-deploy/nginx-access-control.conf;
+
+    # Convert any upstream-side blip (app crash window before the supervisor
+    # exits the container, transient gateway timeout, etc.) into a 503 with a
+    # Retry-After header instead of a raw 502. This is purely defense-in-depth
+    # — the cold-start 502 is already handled by gating nginx on the app's TCP
+    # readiness in entrypoint.sh.
+    error_page 502 504 = @upstream_unavailable;
+
+    location / {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix "${CONTEXT_PATH}";
+        proxy_set_header Accept-Encoding "";
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+
+        sub_filter_once off;
+        sub_filter_last_modified on;
+        sub_filter_types text/html text/css application/javascript application/x-javascript;
+
+        # Anchor each rewrite on a leading whitespace character so JSON blobs
+        # such as `{"href":"/foo"}` (common inside <script type="application/json">
+        # state islands) are NOT rewritten — only attribute boundaries are.
+        sub_filter ' href="/'    ' href="${CONTEXT_PATH}/';
+        sub_filter " href='/"    " href='${CONTEXT_PATH}/";
+        sub_filter ' src="/'     ' src="${CONTEXT_PATH}/';
+        sub_filter " src='/"     " src='${CONTEXT_PATH}/";
+        sub_filter ' srcset="/'  ' srcset="${CONTEXT_PATH}/';
+        sub_filter " srcset='/"  " srcset='${CONTEXT_PATH}/";
+        sub_filter ' poster="/'  ' poster="${CONTEXT_PATH}/';
+        sub_filter " poster='/"  " poster='${CONTEXT_PATH}/";
+        sub_filter ' data-src="/' ' data-src="${CONTEXT_PATH}/';
+        sub_filter " data-src='/" " data-src='${CONTEXT_PATH}/";
+        sub_filter ' action="/'  ' action="${CONTEXT_PATH}/';
+        sub_filter " action='/"  " action='${CONTEXT_PATH}/";
+        sub_filter ' formaction="/' ' formaction="${CONTEXT_PATH}/';
+        sub_filter " formaction='/" " formaction='${CONTEXT_PATH}/";
+        sub_filter ' manifest="/' ' manifest="${CONTEXT_PATH}/';
+        sub_filter " manifest='/" " manifest='${CONTEXT_PATH}/";
+
+        sub_filter 'url("/'      'url("${CONTEXT_PATH}/';
+        sub_filter "url('/"      "url('${CONTEXT_PATH}/";
+        sub_filter 'url(/'       'url(${CONTEXT_PATH}/';
+
+        sub_filter '<head>'      '<head><base href="${CONTEXT_PATH}/">';
+    }
+
+    location @upstream_unavailable {
+        add_header Retry-After 5 always;
+        add_header Content-Type "text/plain; charset=utf-8" always;
+        return 503 "Upstream temporarily unavailable, please retry.\n";
+    }
+}

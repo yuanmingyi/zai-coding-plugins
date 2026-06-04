@@ -1,0 +1,13 @@
+{
+  "type": "commonjs",
+  "scripts": {
+    "test:deploy": "node ./node_modules/vitest/vitest.mjs run __tests__/common.*.test.js __tests__/lifecycle.*.test.js __tests__/standard.*.test.js __tests__/arbitrary.*.test.js __tests__/deployStaticWebsite.test.js",
+    "test:agent-headless": "node ./runDeployArbitraryAgentHeadlessTest.js",
+    "format:check": "prettier --check '*.js' 'arbitrary/*.js' 'common/*.js' 'lifecycle/*.js' '__tests__/*.js'",
+    "format": "prettier --write '*.js' 'arbitrary/*.js' 'common/*.js' 'lifecycle/*.js' '__tests__/*.js'"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "vitest": "^4.0.18"
+  }
+}

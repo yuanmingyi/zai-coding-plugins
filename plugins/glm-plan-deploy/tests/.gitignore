@@ -1,0 +1,59 @@
+# Deploy agent output
+.tmp-deploy/
+deploy-package.zip
+Dockerfile
+Dockerfile.build
+Dockerfile.run
+deploy.sh
+build-output/
+
+# Logs
+*.log
+
+# Go
+go-http/main
+go.sum
+
+# Java
+target/
+*.jar
+*.class
+*.war
+
+# Node.js
+node_modules/
+package-lock.json
+!nodejs-prisma-mysql/package-lock.json
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Ruby
+.bundle/
+vendor/
+Gemfile.lock
+
+# PHP
+vendor/
+composer.lock
+
+# Rust
+target/
+Cargo.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
