@@ -23,6 +23,10 @@ function writeContextPathArtifacts(agentWorkDir) {
     path.join(agentWorkDir, "nginx-access-control.sh"),
     "#!/bin/sh\nexec true\n",
   );
+  fs.writeFileSync(
+    path.join(agentWorkDir, "nginx-static-context-path.envsh"),
+    "#!/bin/sh\nexport CONTEXT_PATH\n",
+  );
 }
 
 describe("arbitrary/packageProject", () => {
@@ -118,6 +122,11 @@ describe("arbitrary/packageProject", () => {
     expect(
       fs.existsSync(path.join(result.packageDir, "nginx-access-control.sh")),
     ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(result.packageDir, "nginx-static-context-path.envsh"),
+      ),
+    ).toBe(true);
     const entrypointMode = fs.statSync(
       path.join(result.packageDir, "entrypoint.sh"),
     ).mode;
@@ -126,6 +135,10 @@ describe("arbitrary/packageProject", () => {
       path.join(result.packageDir, "nginx-access-control.sh"),
     ).mode;
     expect((accessControlMode & 0o111) !== 0).toBe(true);
+    const staticContextEnvMode = fs.statSync(
+      path.join(result.packageDir, "nginx-static-context-path.envsh"),
+    ).mode;
+    expect((staticContextEnvMode & 0o111) !== 0).toBe(true);
     expect(fs.existsSync(path.join(result.packageDir, ".env"))).toBe(false);
     expect(fs.existsSync(path.join(result.packageDir, "tests"))).toBe(false);
     expect(fs.existsSync(path.join(result.packageDir, "node_modules"))).toBe(
@@ -282,6 +295,10 @@ describe("arbitrary/packageProject", () => {
       path.join(tempDir, "nginx-access-control.sh"),
       "#!/bin/sh\n# STALE_ACCESS_CONTROL\n",
     );
+    fs.writeFileSync(
+      path.join(tempDir, "nginx-static-context-path.envsh"),
+      "#!/bin/sh\n# STALE_STATIC_CONTEXT_ENV\n",
+    );
 
     // Freshly rendered artifacts in agentWorkDir (the source of truth).
     fs.writeFileSync(
@@ -308,6 +325,10 @@ describe("arbitrary/packageProject", () => {
       path.join(agentWorkDir, "nginx-access-control.sh"),
       "#!/bin/sh\n# FRESH_ACCESS_CONTROL\n",
     );
+    fs.writeFileSync(
+      path.join(agentWorkDir, "nginx-static-context-path.envsh"),
+      "#!/bin/sh\n# FRESH_STATIC_CONTEXT_ENV\n",
+    );
 
     const result = await runArbitraryPackageProject({
       cwd: tempDir,
@@ -323,6 +344,7 @@ describe("arbitrary/packageProject", () => {
       "nginx.conf.template",
       "entrypoint.sh",
       "nginx-access-control.sh",
+      "nginx-static-context-path.envsh",
     ]) {
       const packaged = fs.readFileSync(
         path.join(result.packageDir, fileName),
@@ -359,7 +381,7 @@ describe("arbitrary/packageProject", () => {
       "#!/bin/sh\n",
     );
     // Intentionally do NOT write nginx.conf.template / entrypoint.sh /
-    // nginx-access-control.sh.
+    // nginx-access-control.sh / static context-path env script.
 
     const result = await runArbitraryPackageProject({
       cwd: tempDir,
@@ -369,7 +391,7 @@ describe("arbitrary/packageProject", () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toMatch(
-      /Missing generated artifact:.*(nginx\.conf\.template|entrypoint\.sh|nginx-access-control\.sh)/,
+      /Missing generated artifact:.*(nginx\.conf\.template|entrypoint\.sh|nginx-access-control\.sh|nginx-static-context-path\.envsh)/,
     );
   });
 });
