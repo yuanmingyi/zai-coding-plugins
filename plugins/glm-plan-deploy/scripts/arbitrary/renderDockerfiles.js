@@ -315,9 +315,11 @@ function renderStaticContextBaseInjectionCommand(outputDir, rewritesPaths) {
   }
 
   const htmlPath = outputDir === "." ? "index.html" : `${outputDir}/index.html`;
+  const jsRootDir = outputDir === "." ? "." : outputDir;
   const script = [
     'const fs = require("fs");',
     `const htmlPath = ${JSON.stringify(htmlPath)};`,
+    `const jsRootDir = ${JSON.stringify(jsRootDir)};`,
     "function normalizeContextPath(value) {",
     '  let normalized = String(value || "").trim();',
     '  if (!normalized) return "";',
@@ -330,6 +332,23 @@ function renderStaticContextBaseInjectionCommand(outputDir, rewritesPaths) {
     "function escapeHtmlAttr(value) {",
     '  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");',
     "}",
+    "function escapeRegex(value) {",
+    '  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");',
+    "}",
+    "function listJavaScriptFiles(rootDir) {",
+    "  const files = [];",
+    "  const queue = [rootDir];",
+    "  while (queue.length) {",
+    "    const currentDir = queue.shift();",
+    "    if (!fs.existsSync(currentDir)) continue;",
+    "    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {",
+    "      const fullPath = `${currentDir}/${entry.name}`;",
+    "      if (entry.isDirectory()) { queue.push(fullPath); continue; }",
+    "      if (entry.isFile() && /\\.m?js$/i.test(entry.name)) files.push(fullPath);",
+    "    }",
+    "  }",
+    "  return files;",
+    "}",
     "function injectStaticContextPathBase() {",
     '  const contextPath = normalizeContextPath(process.env.CONTEXT_PATH || "");',
     "  if (!contextPath || !fs.existsSync(htmlPath)) return;",
@@ -337,10 +356,33 @@ function renderStaticContextBaseInjectionCommand(outputDir, rewritesPaths) {
     "  if (/<base\\b/i.test(html)) return;",
     "  const headPattern = /<head\\b[^>]*>/i;",
     "  if (!headPattern.test(html)) return;",
-    '  const baseTag = `<base href="${escapeHtmlAttr(contextPath)}/">`;',
+    // Keep HREF uppercase so nginx's lowercase sub_filter href rules do not
+    // rewrite this generated base tag into /<context>/<context>/.
+    '  const baseTag = `<base HREF="${escapeHtmlAttr(contextPath)}/">`;',
     "  fs.writeFileSync(htmlPath, html.replace(headPattern, (match) => `${match}${baseTag}`));",
     "}",
+    "function rewriteStaticContextPathJavaScriptRedirects() {",
+    '  const contextPath = normalizeContextPath(process.env.CONTEXT_PATH || "");',
+    "  if (!contextPath) return;",
+    "  const contextSegment = escapeRegex(contextPath.slice(1));",
+    '  const rootPathLookahead = contextSegment ? `(?!/|${contextSegment}(?:/|[?#]|["\']))` : "(?!/)";',
+    "  const patterns = [",
+    '    new RegExp(`(location\\\\.href\\\\s*=\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    '    new RegExp(`(location\\\\.assign\\\\(\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    '    new RegExp(`(location\\\\.replace\\\\(\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    '    new RegExp(`(window\\\\.location\\\\s*=\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    "  ];",
+    "  for (const filePath of listJavaScriptFiles(jsRootDir)) {",
+    '    const original = fs.readFileSync(filePath, "utf8");',
+    "    let rewritten = original;",
+    "    for (const pattern of patterns) {",
+    "      rewritten = rewritten.replace(pattern, (_match, prefix) => `${prefix}${contextPath}/`);",
+    "    }",
+    "    if (rewritten !== original) fs.writeFileSync(filePath, rewritten);",
+    "  }",
+    "}",
     "injectStaticContextPathBase();",
+    "rewriteStaticContextPathJavaScriptRedirects();",
   ].join(" ");
 
   return `RUN node -e ${shellQuote(script)}\n`;
@@ -522,7 +564,11 @@ server {
     index index.html;
 
     location / {
-        try_files $uri $uri/ /index.html;
+        set $zai_static_uri $uri;
+        if ($uri ~ ^\${CONTEXT_PATH}(/.*)$) {
+            set $zai_static_uri $1;
+        }
+        try_files $zai_static_uri $zai_static_uri/ /index.html;
 ${rewriteBlock}    }
 }
 `;

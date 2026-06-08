@@ -134,9 +134,12 @@ Useful options:
 
 ### Diagnostic Fixtures
 
-| Purpose                         | Directory               | Port | Expected Response                   |
-| ------------------------------- | ----------------------- | ---- | ----------------------------------- |
-| TCB/nginx real visitor IP probe | `nodejs-real-ip-probe/` | 9000 | Raw socket and forwarded IP headers |
+| Purpose                                  | Directory                  | Port | Expected Response                             |
+| ---------------------------------------- | -------------------------- | ---- | --------------------------------------------- |
+| TCB/nginx real visitor IP probe          | `nodejs-real-ip-probe/`    | 9000 | Raw socket and forwarded IP headers           |
+| Raw static context-path resource routing | `raw-static-path-routing/` | 9000 | HTML fixture with relative and absolute paths |
+
+`raw-static-path-routing/` verifies both relative and root-absolute HTML `href` paths, plus relative and root-absolute JavaScript redirects, under a non-root deployment context path.
 
 ### Database Fixtures
 

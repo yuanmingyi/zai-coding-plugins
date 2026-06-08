@@ -1,0 +1,8 @@
+body {
+  font-family: system-ui, sans-serif;
+}
+
+main {
+  border: 2px solid #3273dc;
+  padding: 1rem;
+}
