@@ -1,0 +1,40 @@
+#!/bin/sh
+
+normalize_context_path() {
+    value="$1"
+
+    case "$value" in
+        "") printf '%s' ""; return ;;
+    esac
+
+    case "$value" in
+        http://*|https://*)
+            value="${value#*://}"
+            case "$value" in
+                */*) value="/${value#*/}" ;;
+                *) value="" ;;
+            esac
+            ;;
+        /*)
+            ;;
+        *)
+            value="/$value"
+            ;;
+    esac
+
+    while :; do
+        case "$value" in
+            //*) value="${value#/}" ;;
+            *) break ;;
+        esac
+    done
+
+    value="${value%/}"
+    case "$value" in
+        "/") printf '%s' "" ;;
+        *) printf '%s' "$value" ;;
+    esac
+}
+
+CONTEXT_PATH="$(normalize_context_path "${CONTEXT_PATH:-}")"
+export CONTEXT_PATH

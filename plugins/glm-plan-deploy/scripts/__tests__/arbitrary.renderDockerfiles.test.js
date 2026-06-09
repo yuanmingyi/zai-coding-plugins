@@ -39,9 +39,98 @@ const RESOURCE_ACCESS_CONTROL_PATH = path.resolve(
   "contextPath",
   "nginx-access-control.sh",
 );
+const RESOURCE_STATIC_CONTEXT_ENV_PATH = path.resolve(
+  TEST_DIR,
+  "..",
+  "..",
+  "resource",
+  "contextPath",
+  "nginx-static-context-path.envsh",
+);
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "glm-plan-render-"));
+}
+
+function simulateStaticNginxLookup({
+  requestUri,
+  contextPath = "",
+  existingPaths = [],
+}) {
+  let staticUri = requestUri;
+  if (contextPath && requestUri.startsWith(`${contextPath}/`)) {
+    staticUri = requestUri.slice(contextPath.length);
+  }
+
+  const files = new Set(existingPaths);
+  if (files.has(staticUri)) {
+    return staticUri;
+  }
+  if (files.has(`${staticUri}/`)) {
+    return `${staticUri}/`;
+  }
+  return "/index.html";
+}
+
+function replaceSubFilter(value, search, replacement) {
+  return value.replace(
+    new RegExp(escapeRegex(search), "gi"),
+    () => replacement,
+  );
+}
+
+function simulateStaticRuntimeRewrite(html, contextPath) {
+  return [
+    [' href="/', ` href="${contextPath}/`],
+    [" href='/", ` href='${contextPath}/`],
+    [' src="/', ` src="${contextPath}/`],
+    [" src='/", ` src='${contextPath}/`],
+    [' srcset="/', ` srcset="${contextPath}/`],
+    [" srcset='/", ` srcset='${contextPath}/`],
+    [' poster="/', ` poster="${contextPath}/`],
+    [" poster='/", ` poster='${contextPath}/`],
+    [' data-src="/', ` data-src="${contextPath}/`],
+    [" data-src='/", ` data-src='${contextPath}/`],
+    [' action="/', ` action="${contextPath}/`],
+    [" action='/", ` action='${contextPath}/`],
+    [' formaction="/', ` formaction="${contextPath}/`],
+    [" formaction='/", ` formaction='${contextPath}/`],
+    [' manifest="/', ` manifest="${contextPath}/`],
+    [" manifest='/", ` manifest='${contextPath}/`],
+    ['url("/', `url("${contextPath}/`],
+    ["url('/", `url('${contextPath}/`],
+    ["url(/", `url(${contextPath}/`],
+  ].reduce(
+    (rewritten, [search, replacement]) =>
+      replaceSubFilter(rewritten, search, replacement),
+    html,
+  );
+}
+
+function simulateBuildTimeJsRedirectRewrite(js, contextPath) {
+  const contextSegment = escapeRegex(contextPath.slice(1));
+  const rootPathLookahead = contextSegment
+    ? `(?!/|${contextSegment}(?:/|[?#]|["']))`
+    : "(?!/)";
+  const patterns = [
+    new RegExp(`(location\\.href\\s*=\\s*["'])/${rootPathLookahead}`, "g"),
+    new RegExp(`(location\\.assign\\(\\s*["'])/${rootPathLookahead}`, "g"),
+    new RegExp(`(location\\.replace\\(\\s*["'])/${rootPathLookahead}`, "g"),
+    new RegExp(`(window\\.location\\s*=\\s*["'])/${rootPathLookahead}`, "g"),
+  ];
+
+  let rewritten = js;
+  for (const pattern of patterns) {
+    rewritten = rewritten.replace(
+      pattern,
+      (_match, prefix) => `${prefix}${contextPath}/`,
+    );
+  }
+  return rewritten;
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 describe("arbitrary/renderDockerfiles", () => {
@@ -87,6 +176,14 @@ describe("arbitrary/renderDockerfiles", () => {
       "utf8",
     );
     const sourceScript = fs.readFileSync(RESOURCE_SCRIPT_PATH, "utf8");
+    const copiedStaticContextEnv = fs.readFileSync(
+      path.join(agentWorkDir, "nginx-static-context-path.envsh"),
+      "utf8",
+    );
+    const sourceStaticContextEnv = fs.readFileSync(
+      RESOURCE_STATIC_CONTEXT_ENV_PATH,
+      "utf8",
+    );
 
     expect(dockerfileBuild).toContain("FROM node:20-slim");
     expect(dockerfileBuild).toContain("RUN npm ci && npm run build");
@@ -112,13 +209,14 @@ describe("arbitrary/renderDockerfiles", () => {
     expect(dockerfileRun).toContain('CMD ["/entrypoint.sh"]');
     expect(dockerfileRun).not.toContain('CMD ["sh", "-c", "exec npm start"]');
     expect(copiedScript).toBe(sourceScript);
+    expect(copiedStaticContextEnv).toBe(sourceStaticContextEnv);
     // The orchestrator must stage nginx.conf.template + entrypoint.sh into
     // BUILD_OUTPUT_DIR before Step 3. Without this, Dockerfile.run's COPY
     // of those files fails on Go/Rust/Java because their Dockerfile.build
     // CMDs only copy the compiled artifact to /output-mount, not the whole
     // /build/ tree.
     expect(copiedScript).toContain(
-      "for sidecar in nginx.conf.template entrypoint.sh nginx-access-control.sh; do",
+      "for sidecar in nginx.conf.template entrypoint.sh nginx-access-control.sh nginx-static-context-path.envsh; do",
     );
     expect(copiedScript).toContain(
       'cp "${SCRIPT_DIR}/${sidecar}" "${BUILD_OUTPUT_DIR}/${sidecar}"',
@@ -128,6 +226,9 @@ describe("arbitrary/renderDockerfiles", () => {
     );
     expect(copiedScript).toContain(
       'chmod +x "${BUILD_OUTPUT_DIR}/nginx-access-control.sh"',
+    );
+    expect(copiedScript).toContain(
+      'chmod +x "${BUILD_OUTPUT_DIR}/nginx-static-context-path.envsh"',
     );
     // The CNB build job passes CONTEXT_PATH in its env. The orchestrator
     // must forward it as a docker build-arg so Dockerfile.build can bake
@@ -237,11 +338,13 @@ describe("arbitrary/renderDockerfiles", () => {
     expect(dockerfileBuild).toContain(
       "RUN pnpm install --frozen-lockfile && pnpm build",
     );
+    expect(dockerfileBuild).not.toContain("injectStaticContextPathBase");
     expect(dockerfileBuild).toContain("cp -R dist/. /output-mount/");
 
     expect(dockerfileRun).toContain("FROM nginx:1.27-alpine");
     expect(dockerfileRun).toContain("ENV PORT=9000");
     expect(dockerfileRun).toContain('ENV CONTEXT_PATH=""');
+    expect(dockerfileRun).toContain("-name '*.envsh'");
     expect(dockerfileRun).toContain(
       "COPY nginx.conf.template /etc/nginx/templates/default.conf.template",
     );
@@ -249,7 +352,10 @@ describe("arbitrary/renderDockerfiles", () => {
       "COPY nginx-access-control.sh /docker-entrypoint.d/10-zai-access-control.sh",
     );
     expect(dockerfileRun).toContain(
-      "RUN chmod +x /docker-entrypoint.d/10-zai-access-control.sh",
+      "COPY nginx-static-context-path.envsh /docker-entrypoint.d/15-zai-static-context-path.envsh",
+    );
+    expect(dockerfileRun).toContain(
+      "RUN chmod +x /docker-entrypoint.d/10-zai-access-control.sh /docker-entrypoint.d/15-zai-static-context-path.envsh",
     );
     expect(dockerfileRun).toContain('CMD ["nginx", "-g", "daemon off;"]');
     expect(dockerfileRun).not.toContain("APP_PORT");
@@ -263,7 +369,12 @@ describe("arbitrary/renderDockerfiles", () => {
     expect(nginxTemplate).toContain(
       "include /tmp/cc-deploy/nginx-access-control.conf;",
     );
-    expect(nginxTemplate).toContain("try_files $uri $uri/ /index.html;");
+    expect(nginxTemplate).toContain("set $zai_static_uri $uri;");
+    expect(nginxTemplate).toContain("if ($uri ~ ^${CONTEXT_PATH}(/.*)$) {");
+    expect(nginxTemplate).toContain("set $zai_static_uri $1;");
+    expect(nginxTemplate).toContain(
+      "try_files $zai_static_uri $zai_static_uri/ /index.html;",
+    );
     // Vite (and Astro/Angular/Nuxt) bake CONTEXT_PATH into the built HTML at
     // build time via `--base`/`--base-href`/NUXT_APP_BASE_URL. The nginx
     // sub_filter rewrites must NOT also run here, otherwise the prefix is
@@ -272,6 +383,46 @@ describe("arbitrary/renderDockerfiles", () => {
     // which falls back through try_files to index.html and breaks the SPA.
     expect(nginxTemplate).not.toContain("sub_filter ");
     expect(nginxTemplate).not.toContain("proxy_pass");
+  });
+
+  it("maps context-prefixed static asset requests before index fallback", async () => {
+    const existingPaths = ["/assets/a.png", "/index.html"];
+
+    expect(
+      simulateStaticNginxLookup({
+        requestUri: "/app/assets/a.png",
+        contextPath: "/app",
+        existingPaths,
+      }),
+    ).toBe("/assets/a.png");
+    expect(
+      simulateStaticNginxLookup({
+        requestUri: "/assets/a.png",
+        contextPath: "/app",
+        existingPaths,
+      }),
+    ).toBe("/assets/a.png");
+    expect(
+      simulateStaticNginxLookup({
+        requestUri: "/app",
+        contextPath: "/app",
+        existingPaths,
+      }),
+    ).toBe("/index.html");
+    expect(
+      simulateStaticNginxLookup({
+        requestUri: "/app/route",
+        contextPath: "/app",
+        existingPaths,
+      }),
+    ).toBe("/index.html");
+    expect(
+      simulateStaticNginxLookup({
+        requestUri: "/assets/a.png",
+        contextPath: "",
+        existingPaths,
+      }),
+    ).toBe("/assets/a.png");
   });
 
   it("static Node frontend with unknown framework keeps sub_filter as runtime fallback", async () => {
@@ -315,6 +466,13 @@ describe("arbitrary/renderDockerfiles", () => {
 
     expect(dockerfileBuild).not.toContain("--base=");
     expect(dockerfileBuild).not.toContain("--base-href=");
+    expect(dockerfileBuild).toContain("injectStaticContextPathBase");
+    expect(dockerfileBuild).toContain(
+      "rewriteStaticContextPathJavaScriptRedirects",
+    );
+    expect(dockerfileBuild).toContain('const htmlPath = "public/index.html";');
+    expect(dockerfileBuild).toContain("const headPattern = /<head\\b[^>]*>/i;");
+    expect(dockerfileBuild).toContain("<base\\nhref=");
     expect(nginxTemplate).toContain(
       "sub_filter ' href=\"/'    ' href=\"${CONTEXT_PATH}/';",
     );
@@ -362,11 +520,75 @@ describe("arbitrary/renderDockerfiles", () => {
     );
 
     expect(dockerfileBuild).toContain("RUN true");
+    expect(dockerfileBuild).toContain("injectStaticContextPathBase");
+    expect(dockerfileBuild).toContain(
+      "rewriteStaticContextPathJavaScriptRedirects",
+    );
+    expect(dockerfileBuild).toContain('const htmlPath = "index.html";');
+    expect(dockerfileBuild).toContain("const headPattern = /<head\\b[^>]*>/i;");
+    expect(dockerfileBuild).toContain("<base\\nhref=");
     expect(dockerfileBuild).toContain("cp -R ./.");
     expect(dockerfileRun).toContain("FROM nginx:1.27-alpine");
     expect(dockerfileRun).not.toContain("USER_START_COMMAND");
-    expect(nginxTemplate).toContain("try_files $uri $uri/ /index.html;");
+    expect(nginxTemplate).toContain("set $zai_static_uri $uri;");
+    expect(nginxTemplate).toContain("if ($uri ~ ^${CONTEXT_PATH}(/.*)$) {");
+    expect(nginxTemplate).toContain("set $zai_static_uri $1;");
+    expect(nginxTemplate).toContain(
+      "try_files $zai_static_uri $zai_static_uri/ /index.html;",
+    );
     expect(nginxTemplate).toContain("sub_filter ");
+    expect(nginxTemplate).not.toContain("base href");
+    const staticContextPathEnv = fs.readFileSync(
+      path.join(agentWorkDir, "nginx-static-context-path.envsh"),
+      "utf8",
+    );
+    expect(staticContextPathEnv).toContain("normalize_context_path");
+  });
+
+  it("does not double-prefix generated base tags during static runtime rewrites", () => {
+    const rewritten = simulateStaticRuntimeRewrite(
+      '<head><base\nhref="/app/"><script src="/game.js"></script><link href="/style.css" rel="stylesheet"><style>.hero{background:url(/hero.png)}</style>',
+      "/app",
+    );
+
+    expect(rewritten).toContain('<base\nhref="/app/">');
+    expect(rewritten).toContain('src="/app/game.js"');
+    expect(rewritten).toContain('href="/app/style.css"');
+    expect(rewritten).toContain("url(/app/hero.png)");
+    expect(rewritten).not.toContain("/app/app/");
+  });
+
+  it("rewrites root-absolute raw-static JavaScript redirects", () => {
+    const rewritten = simulateBuildTimeJsRedirectRewrite(
+      [
+        'location.href="/pages/a.html";',
+        'location.href = "/pages/b.html";',
+        'location.assign("/pages/c.html");',
+        'location.replace("/pages/d.html");',
+        'window.location="/pages/e.html";',
+        'window.location = "/pages/f.html";',
+        'location.assign("//example.com/external.html");',
+        'location.assign("/app/already-prefixed.html");',
+        'location.assign("/app?tab=1");',
+        'location.assign("/app#section");',
+      ].join("\n"),
+      "/app",
+    );
+
+    expect(rewritten).toContain('location.href="/app/pages/a.html";');
+    expect(rewritten).toContain('location.href = "/app/pages/b.html";');
+    expect(rewritten).toContain('location.assign("/app/pages/c.html");');
+    expect(rewritten).toContain('location.replace("/app/pages/d.html");');
+    expect(rewritten).toContain('window.location="/app/pages/e.html";');
+    expect(rewritten).toContain('window.location = "/app/pages/f.html";');
+    expect(rewritten).toContain(
+      'location.assign("//example.com/external.html");',
+    );
+    expect(rewritten).toContain(
+      'location.assign("/app/already-prefixed.html");',
+    );
+    expect(rewritten).toContain('location.assign("/app?tab=1");');
+    expect(rewritten).toContain('location.assign("/app#section");');
   });
 
   it("copies a selected raw static html file to index.html during Docker build", async () => {

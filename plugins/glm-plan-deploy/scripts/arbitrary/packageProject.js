@@ -77,12 +77,14 @@ const REQUIRED_GENERATED_ARTIFACTS = [
   "nginx.conf.template",
   "entrypoint.sh",
   "nginx-access-control.sh",
+  "nginx-static-context-path.envsh",
 ];
 
 const EXECUTABLE_GENERATED_ARTIFACTS = new Set([
   "buildDockerImage.sh",
   "entrypoint.sh",
   "nginx-access-control.sh",
+  "nginx-static-context-path.envsh",
 ]);
 
 function ensureRequiredGeneratedFiles(agentWorkDir) {

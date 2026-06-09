@@ -34,6 +34,10 @@ async function runRenderArbitraryDockerfiles(options = {}) {
       agentWorkDir,
       "nginx-access-control.sh",
     );
+    const staticContextEnvPath = path.join(
+      agentWorkDir,
+      "nginx-static-context-path.envsh",
+    );
 
     fs.writeFileSync(
       dockerfileBuildPath,
@@ -48,6 +52,7 @@ async function runRenderArbitraryDockerfiles(options = {}) {
     writeNginxTemplate(nginxTemplatePath, rendered.nginxTemplate);
     copyEntrypointResource(entrypointPath);
     copyNginxAccessControlResource(accessControlScriptPath);
+    copyStaticContextPathEnvResource(staticContextEnvPath);
     copyBuildDockerImageScript(scriptPath);
 
     return {
@@ -59,6 +64,7 @@ async function runRenderArbitraryDockerfiles(options = {}) {
       nginxTemplatePath,
       entrypointPath,
       accessControlScriptPath,
+      staticContextEnvPath,
       serviceRoot: detectedConfig.serviceRoot || ".",
       summary: `Rendered Docker deployment files in ${agentWorkDir}`,
     };
@@ -133,6 +139,15 @@ function copyNginxAccessControlResource(destinationPath) {
   const sourcePath = path.join(
     resolveContextPathResourceDir(),
     "nginx-access-control.sh",
+  );
+  fs.copyFileSync(sourcePath, destinationPath);
+  fs.chmodSync(destinationPath, 0o755);
+}
+
+function copyStaticContextPathEnvResource(destinationPath) {
+  const sourcePath = path.join(
+    resolveContextPathResourceDir(),
+    "nginx-static-context-path.envsh",
   );
   fs.copyFileSync(sourcePath, destinationPath);
   fs.chmodSync(destinationPath, 0o755);
@@ -258,6 +273,11 @@ function renderStaticNodeFrontend(config, version) {
   const preamble = renderPackageManagerPreamble(config.packageManager);
   const buildContextBlock = renderBuildContextPathBlock(config.framework);
   const staticIndexCopy = renderStaticIndexCopyCommand(config.staticIndexFile);
+  const rewritesPaths = !frameworkBakesContextPathAtBuildTime(config.framework);
+  const staticContextBaseInjection = renderStaticContextBaseInjectionCommand(
+    outputDir,
+    rewritesPaths,
+  );
   const buildCommand = appendFrameworkBaseFlag(
     config.buildCommand,
     config.framework,
@@ -268,24 +288,105 @@ FROM node:${version}-slim
 WORKDIR /build
 COPY . /build/
 ${buildContextBlock}${preamble}${staticIndexCopy}RUN ${buildCommand}
-CMD mkdir -p /output-mount && cp -R ${outputDir}/. /output-mount/
+${staticContextBaseInjection}CMD mkdir -p /output-mount && cp -R ${outputDir}/. /output-mount/
 `,
     dockerfileRun: `
 FROM nginx:1.27-alpine
 ENV PORT=9000
 ENV CONTEXT_PATH=""
 COPY . /usr/share/nginx/html/
-RUN find /usr/share/nginx/html -maxdepth 1 \\( -name Dockerfile -o -name '*.template' -o -name '*.sh' \\) -delete
+RUN find /usr/share/nginx/html -maxdepth 1 \\( -name Dockerfile -o -name '*.template' -o -name '*.sh' -o -name '*.envsh' \\) -delete
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY nginx-access-control.sh /docker-entrypoint.d/10-zai-access-control.sh
-RUN chmod +x /docker-entrypoint.d/10-zai-access-control.sh
+COPY nginx-static-context-path.envsh /docker-entrypoint.d/15-zai-static-context-path.envsh
+RUN chmod +x /docker-entrypoint.d/10-zai-access-control.sh /docker-entrypoint.d/15-zai-static-context-path.envsh
 EXPOSE 9000
 CMD ["nginx", "-g", "daemon off;"]
 `,
     nginxTemplate: renderStaticNginxTemplate({
-      rewritesPaths: !frameworkBakesContextPathAtBuildTime(config.framework),
+      rewritesPaths,
     }),
   };
+}
+
+function renderStaticContextBaseInjectionCommand(outputDir, rewritesPaths) {
+  if (!rewritesPaths) {
+    return "";
+  }
+
+  const htmlPath = outputDir === "." ? "index.html" : `${outputDir}/index.html`;
+  const jsRootDir = outputDir === "." ? "." : outputDir;
+  const script = [
+    'const fs = require("fs");',
+    `const htmlPath = ${JSON.stringify(htmlPath)};`,
+    `const jsRootDir = ${JSON.stringify(jsRootDir)};`,
+    "function normalizeContextPath(value) {",
+    '  let normalized = String(value || "").trim();',
+    '  if (!normalized) return "";',
+    '  normalized = normalized.replace(/^https?:\\/\\/[^/]*(\\/.*)?$/i, (_match, path) => path || "");',
+    '  normalized = normalized.replace(/^\\/+/, "/");',
+    '  if (!normalized.startsWith("/")) normalized = `/${normalized}`;',
+    '  normalized = normalized.replace(/\\/+$/, "");',
+    '  return normalized === "/" ? "" : normalized;',
+    "}",
+    "function escapeHtmlAttr(value) {",
+    '  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");',
+    "}",
+    "function escapeRegex(value) {",
+    '  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");',
+    "}",
+    "function listJavaScriptFiles(rootDir) {",
+    "  const files = [];",
+    "  const queue = [rootDir];",
+    "  while (queue.length) {",
+    "    const currentDir = queue.shift();",
+    "    if (!fs.existsSync(currentDir)) continue;",
+    "    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {",
+    "      const fullPath = `${currentDir}/${entry.name}`;",
+    "      if (entry.isDirectory()) { queue.push(fullPath); continue; }",
+    "      if (entry.isFile() && /\\.m?js$/i.test(entry.name)) files.push(fullPath);",
+    "    }",
+    "  }",
+    "  return files;",
+    "}",
+    "function injectStaticContextPathBase() {",
+    '  const contextPath = normalizeContextPath(process.env.CONTEXT_PATH || "");',
+    "  if (!contextPath || !fs.existsSync(htmlPath)) return;",
+    '  const html = fs.readFileSync(htmlPath, "utf8");',
+    "  if (/<base\\b/i.test(html)) return;",
+    "  const headPattern = /<head\\b[^>]*>/i;",
+    "  if (!headPattern.test(html)) return;",
+    // Put href on the next line so nginx's case-insensitive literal sub_filter
+    // rule for ` href="/` cannot rewrite this generated base tag into
+    // /<context>/<context>/.
+    '  const baseTag = `<base\\nhref="${escapeHtmlAttr(contextPath)}/">`;',
+    "  fs.writeFileSync(htmlPath, html.replace(headPattern, (match) => `${match}${baseTag}`));",
+    "}",
+    "function rewriteStaticContextPathJavaScriptRedirects() {",
+    '  const contextPath = normalizeContextPath(process.env.CONTEXT_PATH || "");',
+    "  if (!contextPath) return;",
+    "  const contextSegment = escapeRegex(contextPath.slice(1));",
+    '  const rootPathLookahead = contextSegment ? `(?!/|${contextSegment}(?:/|[?#]|["\']))` : "(?!/)";',
+    "  const patterns = [",
+    '    new RegExp(`(location\\\\.href\\\\s*=\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    '    new RegExp(`(location\\\\.assign\\\\(\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    '    new RegExp(`(location\\\\.replace\\\\(\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    '    new RegExp(`(window\\\\.location\\\\s*=\\\\s*["\'])/${rootPathLookahead}`, "g"),',
+    "  ];",
+    "  for (const filePath of listJavaScriptFiles(jsRootDir)) {",
+    '    const original = fs.readFileSync(filePath, "utf8");',
+    "    let rewritten = original;",
+    "    for (const pattern of patterns) {",
+    "      rewritten = rewritten.replace(pattern, (_match, prefix) => `${prefix}${contextPath}/`);",
+    "    }",
+    "    if (rewritten !== original) fs.writeFileSync(filePath, rewritten);",
+    "  }",
+    "}",
+    "injectStaticContextPathBase();",
+    "rewriteStaticContextPathJavaScriptRedirects();",
+  ].join(" ");
+
+  return `RUN node -e ${shellQuote(script)}\n`;
 }
 
 function renderStaticIndexCopyCommand(staticIndexFile) {
@@ -464,7 +565,11 @@ server {
     index index.html;
 
     location / {
-        try_files $uri $uri/ /index.html;
+        set $zai_static_uri $uri;
+        if ($uri ~ ^\${CONTEXT_PATH}(/.*)$) {
+            set $zai_static_uri $1;
+        }
+        try_files $zai_static_uri $zai_static_uri/ /index.html;
 ${rewriteBlock}    }
 }
 `;

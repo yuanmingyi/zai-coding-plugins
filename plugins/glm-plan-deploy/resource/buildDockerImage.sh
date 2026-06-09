@@ -94,7 +94,7 @@ fi
 # (Go, Rust, Java) only copy the produced binary/jar to /output-mount, not the
 # whole /build/ tree. Copy them into the runtime build context explicitly so
 # every language ends up with the files Dockerfile.run expects.
-for sidecar in nginx.conf.template entrypoint.sh nginx-access-control.sh; do
+for sidecar in nginx.conf.template entrypoint.sh nginx-access-control.sh nginx-static-context-path.envsh; do
     if [ -f "${SCRIPT_DIR}/${sidecar}" ]; then
         cp "${SCRIPT_DIR}/${sidecar}" "${BUILD_OUTPUT_DIR}/${sidecar}"
     else
@@ -103,6 +103,7 @@ for sidecar in nginx.conf.template entrypoint.sh nginx-access-control.sh; do
 done
 chmod +x "${BUILD_OUTPUT_DIR}/entrypoint.sh"
 chmod +x "${BUILD_OUTPUT_DIR}/nginx-access-control.sh"
+chmod +x "${BUILD_OUTPUT_DIR}/nginx-static-context-path.envsh"
 
 # Step 3: Runtime image
 log_info "Building runtime image (DEPLOY_BUILD_ID=${DEPLOY_BUILD_ID})..."

@@ -346,7 +346,7 @@ show_usage() {
     echo ""
     echo "Available projects:"
     echo "  python-flask, nodejs-express, go-http, java-spring,"
-    echo "  ruby-sinatra, php-simple, rust-actix"
+    echo "  ruby-sinatra, php-simple, rust-actix, raw-static-path-routing"
     echo ""
     echo "Database fixture projects (not included in default 'all'):"
     echo "  nodejs-prisma-mysql, python-flask-postgres, java-spring-mysql"
@@ -428,7 +428,7 @@ main() {
 
     # Keep database fixtures out of the default suite because they require an
     # explicit databaseMode choice or an external database service.
-    local projects=("python-flask" "nodejs-express" "go-http" "java-spring" "ruby-sinatra" "php-simple" "rust-actix")
+    local projects=("python-flask" "nodejs-express" "go-http" "java-spring" "ruby-sinatra" "php-simple" "rust-actix" "raw-static-path-routing")
     local passed=0
     local failed=0
     local processed=()
