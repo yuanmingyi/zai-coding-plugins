@@ -39,27 +39,43 @@ function listPackageFiles(packageDir) {
   return files.sort();
 }
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function replaceSubFilter(value, search, replacement) {
+  return value.replace(
+    new RegExp(escapeRegex(search), "gi"),
+    () => replacement,
+  );
+}
+
 function simulateStaticRuntimeRewrite(content, contextPath) {
-  return content
-    .replaceAll(' href="/', ` href="${contextPath}/`)
-    .replaceAll(" href='/", ` href='${contextPath}/`)
-    .replaceAll(' src="/', ` src="${contextPath}/`)
-    .replaceAll(" src='/", ` src='${contextPath}/`)
-    .replaceAll(' srcset="/', ` srcset="${contextPath}/`)
-    .replaceAll(" srcset='/", ` srcset='${contextPath}/`)
-    .replaceAll(' poster="/', ` poster="${contextPath}/`)
-    .replaceAll(" poster='/", ` poster='${contextPath}/`)
-    .replaceAll(' data-src="/', ` data-src="${contextPath}/`)
-    .replaceAll(" data-src='/", ` data-src='${contextPath}/`)
-    .replaceAll(' action="/', ` action="${contextPath}/`)
-    .replaceAll(" action='/", ` action='${contextPath}/`)
-    .replaceAll(' formaction="/', ` formaction="${contextPath}/`)
-    .replaceAll(" formaction='/", ` formaction='${contextPath}/`)
-    .replaceAll(' manifest="/', ` manifest="${contextPath}/`)
-    .replaceAll(" manifest='/", ` manifest='${contextPath}/`)
-    .replaceAll('url("/', `url("${contextPath}/`)
-    .replaceAll("url('/", `url('${contextPath}/`)
-    .replaceAll("url(/", `url(${contextPath}/`);
+  return [
+    [' href="/', ` href="${contextPath}/`],
+    [" href='/", ` href='${contextPath}/`],
+    [' src="/', ` src="${contextPath}/`],
+    [" src='/", ` src='${contextPath}/`],
+    [' srcset="/', ` srcset="${contextPath}/`],
+    [" srcset='/", ` srcset='${contextPath}/`],
+    [' poster="/', ` poster="${contextPath}/`],
+    [" poster='/", ` poster='${contextPath}/`],
+    [' data-src="/', ` data-src="${contextPath}/`],
+    [" data-src='/", ` data-src='${contextPath}/`],
+    [' action="/', ` action="${contextPath}/`],
+    [" action='/", ` action='${contextPath}/`],
+    [' formaction="/', ` formaction="${contextPath}/`],
+    [" formaction='/", ` formaction='${contextPath}/`],
+    [' manifest="/', ` manifest="${contextPath}/`],
+    [" manifest='/", ` manifest='${contextPath}/`],
+    ['url("/', `url("${contextPath}/`],
+    ["url('/", `url('${contextPath}/`],
+    ["url(/", `url(${contextPath}/`],
+  ].reduce(
+    (rewritten, [search, replacement]) =>
+      replaceSubFilter(rewritten, search, replacement),
+    content,
+  );
 }
 
 function resolvePath(value, basePath) {
@@ -134,7 +150,7 @@ describe("raw static path routing fixture", () => {
       path.join(agentWorkDir, "nginx.conf.template"),
       "utf8",
     );
-    expect(dockerfileBuild).toContain("<base HREF=");
+    expect(dockerfileBuild).toContain("<base\\nhref=");
     expect(dockerfileBuild).toContain(
       "rewriteStaticContextPathJavaScriptRedirects",
     );
@@ -164,7 +180,7 @@ describe("raw static path routing fixture", () => {
     );
     const rewrittenHtml = simulateStaticRuntimeRewrite(indexHtml, contextPath);
 
-    expect(rewrittenHtml).toContain('<base HREF="/raw-static-demo/">');
+    expect(rewrittenHtml).toContain('<base\nhref="/raw-static-demo/">');
     expect(rewrittenHtml).toContain('href="assets/relative.css"');
     expect(rewrittenHtml).toContain(
       'href="/raw-static-demo/assets/absolute.css"',

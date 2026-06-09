@@ -72,31 +72,39 @@ function simulateStaticNginxLookup({
   return "/index.html";
 }
 
-function simulateStaticRuntimeRewrite(html, contextPath) {
-  return html
-    .replaceAll(' href="/', ` href="${contextPath}/`)
-    .replaceAll(" href='/", ` href='${contextPath}/`)
-    .replaceAll(' src="/', ` src="${contextPath}/`)
-    .replaceAll(" src='/", ` src='${contextPath}/`)
-    .replaceAll(' srcset="/', ` srcset="${contextPath}/`)
-    .replaceAll(" srcset='/", ` srcset='${contextPath}/`)
-    .replaceAll(' poster="/', ` poster="${contextPath}/`)
-    .replaceAll(" poster='/", ` poster='${contextPath}/`)
-    .replaceAll(' data-src="/', ` data-src="${contextPath}/`)
-    .replaceAll(" data-src='/", ` data-src='${contextPath}/`)
-    .replaceAll(' action="/', ` action="${contextPath}/`)
-    .replaceAll(" action='/", ` action='${contextPath}/`)
-    .replaceAll(' formaction="/', ` formaction="${contextPath}/`)
-    .replaceAll(" formaction='/", ` formaction='${contextPath}/`)
-    .replaceAll(' manifest="/', ` manifest="${contextPath}/`)
-    .replaceAll(" manifest='/", ` manifest='${contextPath}/`)
-    .replaceAll('url("/', `url("${contextPath}/`)
-    .replaceAll("url('/", `url('${contextPath}/`)
-    .replaceAll("url(/", `url(${contextPath}/`);
+function replaceSubFilter(value, search, replacement) {
+  return value.replace(
+    new RegExp(escapeRegex(search), "gi"),
+    () => replacement,
+  );
 }
 
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function simulateStaticRuntimeRewrite(html, contextPath) {
+  return [
+    [' href="/', ` href="${contextPath}/`],
+    [" href='/", ` href='${contextPath}/`],
+    [' src="/', ` src="${contextPath}/`],
+    [" src='/", ` src='${contextPath}/`],
+    [' srcset="/', ` srcset="${contextPath}/`],
+    [" srcset='/", ` srcset='${contextPath}/`],
+    [' poster="/', ` poster="${contextPath}/`],
+    [" poster='/", ` poster='${contextPath}/`],
+    [' data-src="/', ` data-src="${contextPath}/`],
+    [" data-src='/", ` data-src='${contextPath}/`],
+    [' action="/', ` action="${contextPath}/`],
+    [" action='/", ` action='${contextPath}/`],
+    [' formaction="/', ` formaction="${contextPath}/`],
+    [" formaction='/", ` formaction='${contextPath}/`],
+    [' manifest="/', ` manifest="${contextPath}/`],
+    [" manifest='/", ` manifest='${contextPath}/`],
+    ['url("/', `url("${contextPath}/`],
+    ["url('/", `url('${contextPath}/`],
+    ["url(/", `url(${contextPath}/`],
+  ].reduce(
+    (rewritten, [search, replacement]) =>
+      replaceSubFilter(rewritten, search, replacement),
+    html,
+  );
 }
 
 function simulateBuildTimeJsRedirectRewrite(js, contextPath) {
@@ -119,6 +127,10 @@ function simulateBuildTimeJsRedirectRewrite(js, contextPath) {
     );
   }
   return rewritten;
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 describe("arbitrary/renderDockerfiles", () => {
@@ -460,7 +472,7 @@ describe("arbitrary/renderDockerfiles", () => {
     );
     expect(dockerfileBuild).toContain('const htmlPath = "public/index.html";');
     expect(dockerfileBuild).toContain("const headPattern = /<head\\b[^>]*>/i;");
-    expect(dockerfileBuild).toContain("<base HREF=");
+    expect(dockerfileBuild).toContain("<base\\nhref=");
     expect(nginxTemplate).toContain(
       "sub_filter ' href=\"/'    ' href=\"${CONTEXT_PATH}/';",
     );
@@ -514,7 +526,7 @@ describe("arbitrary/renderDockerfiles", () => {
     );
     expect(dockerfileBuild).toContain('const htmlPath = "index.html";');
     expect(dockerfileBuild).toContain("const headPattern = /<head\\b[^>]*>/i;");
-    expect(dockerfileBuild).toContain("<base HREF=");
+    expect(dockerfileBuild).toContain("<base\\nhref=");
     expect(dockerfileBuild).toContain("cp -R ./.");
     expect(dockerfileRun).toContain("FROM nginx:1.27-alpine");
     expect(dockerfileRun).not.toContain("USER_START_COMMAND");
@@ -535,11 +547,11 @@ describe("arbitrary/renderDockerfiles", () => {
 
   it("does not double-prefix generated base tags during static runtime rewrites", () => {
     const rewritten = simulateStaticRuntimeRewrite(
-      '<head><base HREF="/app/"><script src="/game.js"></script><link href="/style.css" rel="stylesheet"><style>.hero{background:url(/hero.png)}</style>',
+      '<head><base\nhref="/app/"><script src="/game.js"></script><link href="/style.css" rel="stylesheet"><style>.hero{background:url(/hero.png)}</style>',
       "/app",
     );
 
-    expect(rewritten).toContain('<base HREF="/app/">');
+    expect(rewritten).toContain('<base\nhref="/app/">');
     expect(rewritten).toContain('src="/app/game.js"');
     expect(rewritten).toContain('href="/app/style.css"');
     expect(rewritten).toContain("url(/app/hero.png)");

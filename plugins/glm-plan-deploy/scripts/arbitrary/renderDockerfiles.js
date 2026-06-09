@@ -356,9 +356,10 @@ function renderStaticContextBaseInjectionCommand(outputDir, rewritesPaths) {
     "  if (/<base\\b/i.test(html)) return;",
     "  const headPattern = /<head\\b[^>]*>/i;",
     "  if (!headPattern.test(html)) return;",
-    // Keep HREF uppercase so nginx's lowercase sub_filter href rules do not
-    // rewrite this generated base tag into /<context>/<context>/.
-    '  const baseTag = `<base HREF="${escapeHtmlAttr(contextPath)}/">`;',
+    // Put href on the next line so nginx's case-insensitive literal sub_filter
+    // rule for ` href="/` cannot rewrite this generated base tag into
+    // /<context>/<context>/.
+    '  const baseTag = `<base\\nhref="${escapeHtmlAttr(contextPath)}/">`;',
     "  fs.writeFileSync(htmlPath, html.replace(headPattern, (match) => `${match}${baseTag}`));",
     "}",
     "function rewriteStaticContextPathJavaScriptRedirects() {",
