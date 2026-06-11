@@ -10,7 +10,10 @@ const { runFormatArbitraryDeployReport } = require("./formatDeployReport");
 const { runArbitraryPackageProject } = require("./packageProject");
 const { runArbitraryPollTask } = require("./pollTask");
 const { withTiming } = require("./prepareLocal");
-const { runArbitraryVerifyAccessUrl } = require("./verifyAccessUrl");
+const {
+  isSuccessfulAccessStatus,
+  runArbitraryVerifyAccessUrl,
+} = require("./verifyAccessUrl");
 
 async function runArbitraryExecuteRemoteDeploy(options = {}) {
   const localElapsedSeconds =
@@ -217,31 +220,74 @@ async function runArbitraryExecuteRemoteDeploy(options = {}) {
     fetchImpl: options.verifyFetchImpl || options.fetchImpl,
   });
   if (!verifyResult.success) {
+    if (!isInconclusiveVerificationFailure(pollResult, verifyResult)) {
+      return await attachFinalReport(
+        withTiming(
+          failure("verifyAccessUrl", verifyResult.message, {
+            summary: verifyResult.summary || verifyResult.message,
+            classification: failClosedHelperClassification(
+              "verifyAccessUrl",
+              verifyResult.message,
+              verifyResult.classification,
+            ),
+            packageDir: packageResult.packageDir,
+            uploadedFiles: controllerResult.uploadedFiles || [],
+            taskId: pollResult.taskId || controllerResult.taskId,
+            projectId:
+              pollResult.projectId || controllerResult.projectId || null,
+            accessUrl: pollResult.accessUrl || null,
+            accessControl,
+            verificationStatus: verifyResult.status || null,
+            verificationBody: verifyResult.body || null,
+            usedDiagnosticRequest: Boolean(verifyResult.usedDiagnosticRequest),
+            snapshots: pollResult.snapshots || [],
+            pollElapsedSeconds,
+            packageResult,
+            controllerResult,
+            pollResult,
+            verifyResult,
+          }),
+          startedAt,
+          nowFn,
+        ),
+        localElapsedSeconds,
+        claudeLogPaths,
+        formatReportImpl,
+      );
+    }
+
     return await attachFinalReport(
       withTiming(
-        failure("verifyAccessUrl", verifyResult.message, {
-          summary: verifyResult.summary || verifyResult.message,
-          classification: failClosedHelperClassification(
-            "verifyAccessUrl",
-            verifyResult.message,
-            verifyResult.classification,
-          ),
+        {
+          success: true,
+          stage: "completed",
           packageDir: packageResult.packageDir,
           uploadedFiles: controllerResult.uploadedFiles || [],
           taskId: pollResult.taskId || controllerResult.taskId,
           projectId: pollResult.projectId || controllerResult.projectId || null,
+          status: pollResult.status,
+          currentStep: pollResult.currentStep || null,
+          stepMessage: pollResult.stepMessage || null,
           accessUrl: pollResult.accessUrl || null,
           accessControl,
           verificationStatus: verifyResult.status || null,
-          verificationBody: verifyResult.body || null,
+          verificationError:
+            verifyResult.message || verifyResult.summary || "Unknown error",
+          verified: false,
           usedDiagnosticRequest: Boolean(verifyResult.usedDiagnosticRequest),
+          expectedAccessDenied: false,
           snapshots: pollResult.snapshots || [],
           pollElapsedSeconds,
+          summary: formatSuccessSummary({
+            taskId: pollResult.taskId || controllerResult.taskId,
+            verifyResult,
+          }),
+          verificationClassification: verifyResult.classification || null,
           packageResult,
           controllerResult,
           pollResult,
           verifyResult,
-        }),
+        },
         startedAt,
         nowFn,
       ),
@@ -251,7 +297,7 @@ async function runArbitraryExecuteRemoteDeploy(options = {}) {
     );
   }
 
-  if (!verifyResult.verified) {
+  if (!isVerifiedAccessUrl(verifyResult)) {
     const classification = await classifyFailureImpl({
       verificationBody: verifyResult.body || null,
     });
@@ -465,8 +511,33 @@ function formatSuccessSummary({ taskId, verifyResult }) {
     parts.push(
       "Access URL is restricted and returned the expected denied status from this IP.",
     );
+  } else if (verifyResult && verifyResult.success === false) {
+    parts.push(
+      `Access URL verification did not complete: ${
+        verifyResult.message ||
+        verifyResult.summary ||
+        "unknown verification error"
+      }.`,
+    );
   }
   return parts.join(" ");
+}
+
+function isInconclusiveVerificationFailure(pollResult, verifyResult) {
+  return Boolean(
+    pollResult &&
+    pollResult.accessUrl &&
+    verifyResult &&
+    verifyResult.requestAttempted === true,
+  );
+}
+
+function isVerifiedAccessUrl(verifyResult) {
+  return Boolean(
+    verifyResult &&
+    (verifyResult.verified === true ||
+      isSuccessfulAccessStatus(verifyResult.status)),
+  );
 }
 
 function failure(stage, message, extra = {}) {
@@ -507,6 +578,7 @@ async function attachFinalReport(
         totalSeconds: (localElapsedSeconds || 0) + (result.elapsedSeconds || 0),
         expectedAccessDenied: result.expectedAccessDenied === true,
         verificationStatus: result.verificationStatus || null,
+        verificationError: result.verificationError || null,
         claudeLogPaths,
       }
     : {

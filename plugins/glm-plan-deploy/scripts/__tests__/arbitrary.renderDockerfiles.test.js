@@ -238,7 +238,7 @@ describe("arbitrary/renderDockerfiles", () => {
       '--build-arg "CONTEXT_PATH=${CONTEXT_PATH:-}"',
     );
 
-    // Per-build uniqueness. CNB resolves `${APP_NAME}:latest` to a digest
+    // Per-build uniqueness. CNB resolves `${DOCKER_IMAGE_NAME}:latest` to a digest
     // and short-circuits the SCF function update when the digest looks
     // unchanged. Two failure modes were observed in production:
     //   1. Two deploys of the same source produce digest-identical images
@@ -255,7 +255,10 @@ describe("arbitrary/renderDockerfiles", () => {
       '--label "com.cc-deploy.build-id=${DEPLOY_BUILD_ID}"',
     );
     expect(copiedScript).toContain(
-      'UNIQUE_IMAGE="${TCR_DOMAIN}/${TCR_NAMESPACE}/${APP_NAME}:cc-deploy-${DEPLOY_BUILD_ID}"',
+      'DOCKER_IMAGE_NAME="$(normalize_docker_image_name "${APP_NAME}")"',
+    );
+    expect(copiedScript).toContain(
+      'UNIQUE_IMAGE="${TCR_DOMAIN}/${TCR_NAMESPACE}/${DOCKER_IMAGE_NAME}:cc-deploy-${DEPLOY_BUILD_ID}"',
     );
     expect(copiedScript).toContain('docker push "${UNIQUE_IMAGE}"');
 
