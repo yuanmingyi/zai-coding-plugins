@@ -10,7 +10,10 @@ const { runFormatArbitraryDeployReport } = require("./formatDeployReport");
 const { runArbitraryPackageProject } = require("./packageProject");
 const { runArbitraryPollTask } = require("./pollTask");
 const { withTiming } = require("./prepareLocal");
-const { runArbitraryVerifyAccessUrl } = require("./verifyAccessUrl");
+const {
+  isSuccessfulAccessStatus,
+  runArbitraryVerifyAccessUrl,
+} = require("./verifyAccessUrl");
 
 async function runArbitraryExecuteRemoteDeploy(options = {}) {
   const localElapsedSeconds =
@@ -294,7 +297,7 @@ async function runArbitraryExecuteRemoteDeploy(options = {}) {
     );
   }
 
-  if (!verifyResult.verified) {
+  if (!isVerifiedAccessUrl(verifyResult)) {
     const classification = await classifyFailureImpl({
       verificationBody: verifyResult.body || null,
     });
@@ -526,6 +529,14 @@ function isInconclusiveVerificationFailure(pollResult, verifyResult) {
     pollResult.accessUrl &&
     verifyResult &&
     verifyResult.requestAttempted === true,
+  );
+}
+
+function isVerifiedAccessUrl(verifyResult) {
+  return Boolean(
+    verifyResult &&
+    (verifyResult.verified === true ||
+      isSuccessfulAccessStatus(verifyResult.status)),
   );
 }
 
