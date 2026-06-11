@@ -570,7 +570,7 @@ describe("arbitrary/executeRemoteDeploy", () => {
     expect(result.finalReport).toContain("Deployment Failed");
   });
 
-  it("marks access URL request failures as terminal non-retryable failures", async () => {
+  it("keeps backend success when access URL verification cannot complete", async () => {
     const result = await runArbitraryExecuteRemoteDeploy({
       cwd: "/tmp/demo",
       agentWorkDir: "/tmp/demo/.zai/deploy/arbitrary/run-1",
@@ -601,16 +601,59 @@ describe("arbitrary/executeRemoteDeploy", () => {
         success: false,
         message: "access URL request failed",
         summary: "access URL request failed",
+        requestAttempted: true,
+      }),
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.stage).toBe("completed");
+    expect(result.status).toBe("Success");
+    expect(result.verified).toBe(false);
+    expect(result.verificationStatus).toBeNull();
+    expect(result.verificationError).toBe("access URL request failed");
+    expect(result.summary).toContain(
+      "Remote deployment completed successfully",
+    );
+    expect(result.summary).toContain(
+      "Access URL verification did not complete",
+    );
+    expect(result.finalReport).toContain("Deployment Completed Successfully");
+    expect(result.finalReport).toContain("Verification inconclusive");
+    expect(result.finalReport).not.toContain("Deployment Failed");
+  });
+
+  it("fails when a successful backend task has no access URL to verify", async () => {
+    const result = await runArbitraryExecuteRemoteDeploy({
+      cwd: "/tmp/demo",
+      agentWorkDir: "/tmp/demo/.zai/deploy/arbitrary/run-1",
+      serviceRoot: ".",
+      uploadSizeLimit: 104857600,
+      timeoutSeconds: 300,
+      packageProjectImpl: async () => ({
+        success: true,
+        packageDir: "/tmp/demo/.zai/deploy/arbitrary/run-1/deploy-package",
+      }),
+      controllerDeployImpl: async () => ({
+        success: true,
+        taskId: "task-5",
+        projectId: "project-5",
+        uploadedFiles: ["app.js"],
+      }),
+      pollTaskImpl: async () => ({
+        success: true,
+        taskId: "task-5",
+        projectId: "project-5",
+        status: "Success",
+        currentStep: "Succeeded",
+        stepMessage: "Deployment completed",
+        accessUrl: null,
+        snapshots: [],
       }),
     });
 
     expect(result.success).toBe(false);
     expect(result.stage).toBe("verifyAccessUrl");
-    expect(result.classification).toMatchObject({
-      success: true,
-      retryable: false,
-      category: "REMOTE_HELPER_TERMINAL_FAILURE",
-    });
+    expect(result.message).toContain("Missing required verification input");
     expect(result.finalReport).toContain("Deployment Failed");
   });
 

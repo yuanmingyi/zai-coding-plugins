@@ -204,12 +204,19 @@ function buildSuccessReport(values) {
 }
 
 function renderAccessControlNoticeBlock(options) {
-  if (options.expectedAccessDenied !== true) {
-    return "";
+  if (options.expectedAccessDenied === true) {
+    const status = normalizeHttpStatus(options.verificationStatus) || 403;
+    return `\n  Access    : Restricted; verification got expected HTTP ${status}`;
   }
 
-  const status = normalizeHttpStatus(options.verificationStatus) || 403;
-  return `\n  Access    : Restricted; verification got expected HTTP ${status}`;
+  if (options.verificationError) {
+    return `\n  Access    : Verification inconclusive; ${truncateLine(
+      options.verificationError,
+      120,
+    )}`;
+  }
+
+  return "";
 }
 
 function normalizeHttpStatus(value) {
@@ -218,6 +225,16 @@ function normalizeHttpStatus(value) {
     return null;
   }
   return number;
+}
+
+function truncateLine(value, maxLength) {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
 function trimFinalNewline(value) {
