@@ -348,6 +348,7 @@ describe("arbitrary/renderDockerfiles", () => {
     expect(dockerfileRun).toContain("ENV PORT=9000");
     expect(dockerfileRun).toContain('ENV CONTEXT_PATH=""');
     expect(dockerfileRun).toContain("-name '*.envsh'");
+    expect(dockerfileRun).toContain("RUN chmod -R a+rX /usr/share/nginx/html");
     expect(dockerfileRun).toContain(
       "COPY nginx.conf.template /etc/nginx/templates/default.conf.template",
     );

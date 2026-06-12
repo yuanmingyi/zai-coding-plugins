@@ -296,6 +296,7 @@ ENV PORT=9000
 ENV CONTEXT_PATH=""
 COPY . /usr/share/nginx/html/
 RUN find /usr/share/nginx/html -maxdepth 1 \\( -name Dockerfile -o -name '*.template' -o -name '*.sh' -o -name '*.envsh' \\) -delete
+RUN chmod -R a+rX /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY nginx-access-control.sh /docker-entrypoint.d/10-zai-access-control.sh
 COPY nginx-static-context-path.envsh /docker-entrypoint.d/15-zai-static-context-path.envsh
